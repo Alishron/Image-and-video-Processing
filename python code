@@ -1,0 +1,85 @@
+import cv2
+import numpy as np
+import time
+from skimage.metrics import peak_signal_noise_ratio, structural_similarity
+
+cap = cv2.VideoCapture(0)
+fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+#GIVE YOUR DESIRED DIRECTORY
+
+output_filename = 'C:\\Users\\Alish Sahdev\\OneDrive\\Desktop\\alish.mp4'
+out = cv2.VideoWriter(output_filename, fourcc, 30.0, (640, 480))
+
+if not out.isOpened():
+    print("Error: Could not open VideoWriter.")
+    exit()
+
+total_psnr = 0
+total_ssim = 0
+total_frames = 0
+start_time = cv2.getTickCount()
+
+recording = False
+
+frame_rate = 30  # Desired frame rate
+frame_period = 1.0 / frame_rate
+
+while True:
+    frame_start_time = time.time()
+
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    denoised_frame = cv2.fastNlMeansDenoisingColored(frame, None, 10, 10, 7, 21)
+    enhanced_frame = cv2.detailEnhance(denoised_frame, sigma_s=10, sigma_r=0.15)
+
+    psnr_value = peak_signal_noise_ratio(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY),
+                                         cv2.cvtColor(denoised_frame, cv2.COLOR_BGR2GRAY))
+    ssim_value = structural_similarity(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY),
+                                       cv2.cvtColor(denoised_frame, cv2.COLOR_BGR2GRAY))
+
+    fps = cv2.getTickFrequency() / (cv2.getTickCount() - start_time)
+    total_psnr += psnr_value
+    total_ssim += ssim_value
+    total_frames += 1
+
+    cv2.putText(frame, f"PSNR: {psnr_value:.2f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+    cv2.putText(frame, f"SSIM: {ssim_value:.2f}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+    cv2.putText(frame, f"FPS: {fps:.2f}", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+    cv2.imshow('Real-time Video', frame)
+    cv2.imshow('Denoised Video', denoised_frame)
+    cv2.imshow('Enhanced Video', enhanced_frame)
+
+    if recording:
+        out.write(enhanced_frame)
+
+    key = cv2.waitKey(1)
+
+#TO START/STOP THE RECORDING PRESS 'r'
+    if key == ord('r'):
+        recording = not recording
+        if recording:
+            print("Recording started.")
+            
+            cv2.waitKey(1000)
+        else:
+            print("Recording stopped.")
+
+            #PRESS Q TO SAVE THE VIDEO IN DESIRED DIRECTORY AND IT WILL GIVE YOU AVERAGE FPS , PSNR AND SSIM
+    elif key == ord('q'):
+        break
+
+    time.sleep(max(frame_period - (time.time() - frame_start_time), 0))
+
+average_psnr = total_psnr / total_frames
+average_ssim = total_ssim / total_frames
+average_fps = cv2.getTickFrequency() / ((cv2.getTickCount() - start_time) / total_frames)
+print(f"Average PSNR: {average_psnr:.2f}")
+print(f"Average SSIM: {average_ssim:.2f}")
+print(f"Average FPS: {average_fps:.2f}")
+
+cap.release()
+out.release()
+cv2.destroyAllWindows()
